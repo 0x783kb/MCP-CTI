@@ -31,7 +31,7 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/your-repo/mcp-cti.git
+git https://github.com/0x783kb/MCP-CTI.git
 cd mcp-cti
 
 # 创建虚拟环境并安装依赖
