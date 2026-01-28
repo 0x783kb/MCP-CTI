@@ -20,6 +20,7 @@
 | **WebFingerprint** | 网站指纹识别（HTTP Headers, Favicon Hash） | 无（被动 / 主动可选） |
 | **RDAP / Whois** | 域名注册人信息、注册局原始数据 | 无 |
 | **crt.sh** | SSL 证书透明度历史记录（子域名挖掘） | 无 |
+| **SSL/JARM** | 证书详情与指纹；主动 JARM 探测；平台被动 JARM（Shodan/FOFA） | jarm 工具（可选） |
 
 ### 🚀 批量自动化分析
 支持批量输入 IP 或域名，并行执行调查任务，自动识别目标类型并生成汇总报告。
@@ -31,7 +32,7 @@
 
 ```bash
 # 克隆仓库
-git https://github.com/0x783kb/MCP-CTI.git
+git clone https://github.com/0x783kb/mcp-cti.git
 cd mcp-cti
 
 # 创建虚拟环境并安装依赖
@@ -164,11 +165,9 @@ mcp run server.py
 配置完成后，您可以在 Chat 中使用自然语言与 MCP 服务器交互。以下是一些高效的提示词示例：
 
 ### 🕵️‍♂️ 调查单个目标
-> "帮我分析一下 IP 1.1.1.1 的安全性" 
-
-> "这个域名 www.baidu.com 是恶意的吗？" 
-
-> "调查 1.1.1.1，看看有没有开放端口"
+> "帮我分析一下 IP 1.1.1.1 的安全性"
+> "这个域名 sz-everstar.com 是恶意的吗？"
+> "调查 172.234.199.15，看看有没有开放端口"
 
 ### 📦 批量自动化分析
 > "分析以下 IOC 列表：
@@ -218,6 +217,7 @@ WEB_SERVER=1 WEB_HOST=127.0.0.1 WEB_PORT=8000 python3 server.py
 - 一键导出报告（Markdown / HTML）
 - 展示 FOFA 网络资产（端口 / 服务标题 / 指纹 / 链接）
 - 域名报告并列展示解析 IP（历史解析（VT）与当前解析（DNS））
+- 展示 SSL 证书详情与 JARM 指纹（主动 / 被动）
 
 ### Web 模式 API
 - 单个 IP：`/investigate_ip?ip=1.1.1.1`
@@ -227,6 +227,34 @@ WEB_SERVER=1 WEB_HOST=127.0.0.1 WEB_PORT=8000 python3 server.py
 - 任务状态：`GET /task_status?job_id=...`
 - 任务结果：`GET /task_result?job_id=...`
 - 当前解析：`/resolve?domain=example.com`
+
+## 🔐 SSL 与 JARM 支持
+
+### 数据来源
+- 主动探测：安装 jarm 工具后，本地模块会对目标进行 JARM 探测，并在报告的“SSL 证书与加密”板块展示。
+- 被动平台：
+  - Shodan Host API 会在每个服务的 `ssl.jarm` 字段返回 JARM 指纹（需配置 `SHODAN_API_KEY`）。
+  - FOFA API 支持通过 `fields=... ,jarm` 返回资产的 JARM 值（需同时配置 `FOFA_EMAIL` 与 `FOFA_API_KEY`）。
+
+### 环境准备
+- 可选安装 jarm（Python 实现）：
+  ```bash
+  pip install jarm-v1
+  # 或使用官方脚本，确保 jarm 命令在 PATH 中
+  ```
+- 配置平台 Key：
+  - `SHODAN_API_KEY`：启用 Host API，返回 `ssl.jarm`
+  - `FOFA_EMAIL`、`FOFA_API_KEY`：启用 FOFA 并返回 `jarm`
+
+### 注意事项
+- 使用 Shodan 免费的 InternetDB 接口时不包含 JARM 指纹。
+- FOFA 的 `jarm` 仅对启用 TLS 的服务返回。
+- 报告会对重复的 JARM 值进行去重与汇总展示。
+
+### 代码参考
+- Shodan JARM 提取： [portscan.py](file:///Users/jackma/Python/MCP-tools/mcp-cti/providers/portscan.py)
+- FOFA JARM 提取： [fofa.py](file:///Users/jackma/Python/MCP-tools/mcp-cti/providers/fofa.py)
+- 报告展示（SSL/JARM）： [server.py](file:///Users/jackma/Python/MCP-tools/mcp-cti/server.py)
 
 ## 📊 报告示例
 
@@ -253,6 +281,8 @@ WEB_SERVER=1 WEB_HOST=127.0.0.1 WEB_PORT=8000 python3 server.py
   - 报告生成完成后才可导出；确保浏览器可访问 marked CDN。
 - 为什么“当前解析（DNS）”为空？
   - 域名可能未解析或被暂停；可使用 `/resolve?domain=...` 独立查看并确认错误信息。
+- JARM 指纹为什么不显示？
+  - 本地未安装 `jarm` 工具时不会进行主动探测；Shodan 需使用 Host API 才会返回 `ssl.jarm`（InternetDB 不包含）；FOFA 需在 `fields` 中包含 `jarm` 且目标服务为 TLS。
 
 ## 📝 开发计划
 - [x] 集成 VirusTotal, Shodan, Whois

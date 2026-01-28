@@ -39,7 +39,7 @@ async def query_ip(client, ip: str) -> Dict[str, Any]:
         "email": email,
         "key": key,
         "qbase64": qbase64,
-        "fields": "ip,port,protocol,country_name,region_name,city_name,title,server,isp,domain,host,org,icp,os,link",
+        "fields": "ip,port,protocol,country_name,region_name,city_name,title,server,isp,domain,host,org,icp,os,link,jarm",
         "size": 100
     }
     
@@ -59,7 +59,7 @@ async def query_ip(client, ip: str) -> Dict[str, Any]:
         assets = []
         for item in results:
             # fields: ip, port, protocol, country, region, city, title, server, isp, domain, host, org, icp, os, link
-            # index:  0   1     2         3        4       5     6      7       8    9       10    11   12   13  14
+            # index:  0   1     2         3        4       5     6      7       8    9       10    11   12   13  14  15
             # 注意：部分字段可能为空或缺少，取决于 API 返回
             # 确保 item 长度足够，或者使用 try-except/get 方式（但 results 是 list of lists）
             # FOFA API 保证返回列表长度与 fields 数量一致
@@ -77,7 +77,8 @@ async def query_ip(client, ip: str) -> Dict[str, Any]:
                 "org": item[11],
                 "icp": item[12],
                 "os": item[13],
-                "link": item[14]
+                "link": item[14],
+                "jarm": item[15]
             }
             assets.append(asset)
             
@@ -116,7 +117,7 @@ async def query_domain(client, domain: str) -> Dict[str, Any]:
         "email": email,
         "key": key,
         "qbase64": qbase64,
-        "fields": "ip,port,protocol,country_name,region_name,city_name,title,server,isp,domain,host,org,icp,os,link",
+        "fields": "ip,port,protocol,country_name,region_name,city_name,title,server,isp,domain,host,org,icp,os,link,jarm",
         "size": 100
     }
     
@@ -147,7 +148,8 @@ async def query_domain(client, domain: str) -> Dict[str, Any]:
                 "org": item[11],
                 "icp": item[12],
                 "os": item[13],
-                "link": item[14]
+                "link": item[14],
+                "jarm": item[15]
             }
             assets.append(asset)
             

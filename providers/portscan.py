@@ -73,11 +73,16 @@ async def _query_shodan_api(client, ip: str, api_key: str) -> Dict[str, Any]:
     open_ports = []
     # 解析服务详情
     service_data = data.get("data", [])
+    jarm_set = set()
     for service in service_data:
         port = service.get("port")
         product = service.get("product", "Unknown")
         version = service.get("version", "")
         transport = service.get("transport", "tcp")
+        ssl_info = service.get("ssl") or {}
+        jarm = ssl_info.get("jarm")
+        if isinstance(jarm, str) and jarm:
+            jarm_set.add(jarm)
         
         service_str = product
         if version:
@@ -87,7 +92,8 @@ async def _query_shodan_api(client, ip: str, api_key: str) -> Dict[str, Any]:
             "port": port,
             "service": service_str,
             "transport": transport,
-            "status": "open"
+            "status": "open",
+            "jarm": jarm if isinstance(jarm, str) else None
         })
     
     # 如果 data 中没有覆盖所有 ports (极少情况)，补充
@@ -110,7 +116,9 @@ async def _query_shodan_api(client, ip: str, api_key: str) -> Dict[str, Any]:
         "tags": tags,
         "os": data.get("os"),
         "isp": data.get("isp"),
-        "last_update": data.get("last_update")
+        "last_update": data.get("last_update"),
+        "jarm_fingerprints": list(jarm_set),
+        "jarm_count": len(jarm_set)
     }
     
     return format_result("PortScan", result)

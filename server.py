@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 
 # 导入插件模块
-from providers import virustotal, local_whois, rdap, crtsh, fingerprint, portscan, otx, ipinfo, icp, abuseipdb, fofa, threatfox
+from providers import virustotal, local_whois, rdap, crtsh, fingerprint, portscan, otx, ipinfo, icp, abuseipdb, fofa, threatfox, ssl_info
 from providers.base import format_result, validate_ip_address, validate_domain_name
 from utils.cache import TTLCache
 from config import CACHE_ENABLED, CACHE_TTL
@@ -77,7 +77,7 @@ async def execute_provider_queries(client: httpx.AsyncClient, target: str,
     tasks = []
 
     # 为每个提供商创建查询任务
-    for provider in [virustotal, local_whois, rdap, crtsh, fingerprint, portscan, otx, ipinfo, icp, abuseipdb, fofa, threatfox]:
+    for provider in [virustotal, local_whois, rdap, crtsh, fingerprint, portscan, otx, ipinfo, icp, abuseipdb, fofa, threatfox, ssl_info]:
         try:
             if query_type == "ip" and hasattr(provider, 'query_ip'):
                 tasks.append(provider.query_ip(client, target))
@@ -139,6 +139,7 @@ def generate_report(target: str, results: List[Dict[str, Any]], report_type: str
     crt_data = data_map.get("crt.sh", {})
     otx_data = data_map.get("AlienVault OTX", {})
     threatfox_data = data_map.get("ThreatFox", {})
+    ssl_jarm_data = data_map.get("SSL/JARM", {})
 
     # --- 报告开始 ---
     title_icon = "🌐" if report_type == "domain" else "🛡️"
@@ -354,11 +355,62 @@ def generate_report(target: str, results: List[Dict[str, Any]], report_type: str
         if fp_data.get("favicon"):
              report.append(f"- **Favicon**: Hash `{fp_data['favicon'].get('hash')}`")
     
-    # 4.3 SSL 证书 (Domain)
+    # 4.3 SSL 证书与 JARM
+    report.append(f"### 🔐 SSL 证书与加密")
+    
+    # 实时 SSL 信息
+    ssl_info = ssl_jarm_data.get("ssl", {})
+    if ssl_info and ssl_info.get("valid"):
+        subject = ssl_info.get("subject", {})
+        issuer = ssl_info.get("issuer", {})
+        cn = subject.get("commonName", "N/A")
+        issuer_cn = issuer.get("commonName", "N/A")
+        valid_to = ssl_info.get("notAfter", "N/A")
+        
+        report.append(f"- **证书主体**: `{cn}`")
+        report.append(f"- **颁发机构**: `{issuer_cn}`")
+        report.append(f"- **有效期至**: `{valid_to}`")
+        
+        sans = ssl_info.get("sans", [])
+        if sans:
+            sans_str = ", ".join(sans[:5]) + ("..." if len(sans) > 5 else "")
+            report.append(f"- **SAN 域名**: {sans_str}")
+            
+        fp = ssl_info.get("fingerprint_sha1")
+        if fp:
+            report.append(f"- **指纹 (SHA1)**: `{fp}`")
+    else:
+        if ssl_info.get("error"):
+            report.append(f"- **SSL 探测失败**: {ssl_info.get('error')}")
+
+    # JARM 指纹
+    jarm_info = ssl_jarm_data.get("jarm", {})
+    if jarm_info:
+        if jarm_info.get("status") == "success":
+            report.append(f"- **JARM 指纹**: `{jarm_info.get('raw')}`")
+        elif jarm_info.get("status") == "missing":
+            report.append(f"- **JARM**: `未安装 jarm 工具`")
+        else:
+            report.append(f"- **JARM**: 探测失败 ({jarm_info.get('error')})")
+    
+    shodan_jarm = shodan_data.get("jarm_fingerprints", [])
+    if shodan_jarm:
+        report.append(f"- **Shodan JARM**: {', '.join(shodan_jarm[:3])}" + (" ..." if len(shodan_jarm) > 3 else ""))
+    
+    fofa_jarm_set = set()
+    for a in fofa_data.get("assets", [])[:20]:
+        j = a.get("jarm")
+        if isinstance(j, str) and j:
+            fofa_jarm_set.add(j)
+    if fofa_jarm_set:
+        fofa_jarm_list = list(fofa_jarm_set)
+        report.append(f"- **FOFA JARM**: {', '.join(fofa_jarm_list[:3])}" + (" ..." if len(fofa_jarm_list) > 3 else ""))
+
+    # 4.4 历史证书 (crt.sh) - 仅域名模式
     if report_type == "domain":
         certs = crt_data if isinstance(crt_data, list) else crt_data.get("subdomains", [])
         if certs:
-            report.append(f"### SSL 证书记录 ({len(certs)})")
+            report.append(f"#### 📜 证书历史 (crt.sh)")
             if isinstance(certs[0], dict):
                  for cert in certs[:3]:
                     issued = cert.get('issued_date', '').split('T')[0]
